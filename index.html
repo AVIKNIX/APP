@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IP & JS Beautifier</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/js-beautify/1.15.1/beautify.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #22253a;
+      --border: #2e3250;
+      --accent: #6c63ff;
+      --accent-hover: #8b85ff;
+      --accent-dim: #6c63ff22;
+      --text: #e8eaf6;
+      --muted: #8891b4;
+      --success: #4caf92;
+      --error: #ff6b6b;
+      --radius: 12px;
+      --mono: 'JetBrains Mono', 'Fira Mono', 'Cascadia Code', monospace;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ─── NAV ─────────────────────────────────────────────── */
+    nav {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 16px 24px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .nav-brand {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: -0.5px;
+      margin-right: 16px;
+    }
+
+    .tab-btn {
+      background: none;
+      border: 1px solid transparent;
+      color: var(--muted);
+      padding: 8px 18px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.18s;
+    }
+
+    .tab-btn:hover { color: var(--text); background: var(--surface2); }
+
+    .tab-btn.active {
+      color: var(--accent);
+      background: var(--accent-dim);
+      border-color: var(--accent);
+    }
+
+    /* ─── SCREENS ─────────────────────────────────────────── */
+    .screen { display: none; flex: 1; padding: 40px 24px; max-width: 960px; margin: 0 auto; width: 100%; }
+    .screen.active { display: flex; flex-direction: column; gap: 28px; }
+
+    /* ─── IP SCREEN ───────────────────────────────────────── */
+    .ip-hero {
+      background: linear-gradient(135deg, #1a1d27 0%, #1e1b3a 100%);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 48px 40px;
+      text-align: center;
+    }
+
+    .ip-label {
+      font-size: 12px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+
+    .ip-value {
+      font-size: clamp(32px, 6vw, 56px);
+      font-weight: 800;
+      font-family: var(--mono);
+      color: var(--accent);
+      letter-spacing: -1px;
+      min-height: 70px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+    }
+
+    .ip-value .skeleton {
+      display: inline-block;
+      width: 280px;
+      height: 56px;
+      background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: 8px;
+    }
+
+    @keyframes shimmer { to { background-position: -200% 0; } }
+
+    .ip-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      margin-top: 28px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 22px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.18s;
+    }
+
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 4px 18px #6c63ff44; }
+
+    .btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+    .btn-ghost:hover { background: var(--border); }
+
+    .btn:active { transform: translateY(0); }
+
+    .toast {
+      position: fixed;
+      bottom: 28px;
+      right: 28px;
+      background: var(--success);
+      color: #fff;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      opacity: 0;
+      transform: translateY(12px);
+      transition: all 0.25s;
+      pointer-events: none;
+      z-index: 999;
+    }
+
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    /* ─── DETAILS GRID ────────────────────────────────────── */
+    .details-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 16px;
+    }
+
+    .detail-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+
+    .detail-card .d-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .detail-card .d-value {
+      font-size: 16px;
+      font-weight: 600;
+      font-family: var(--mono);
+      color: var(--text);
+      word-break: break-all;
+    }
+
+    .detail-card .d-value.loading {
+      width: 80%;
+      height: 20px;
+      background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: 4px;
+    }
+
+    /* ─── BEAUTIFIER SCREEN ───────────────────────────────── */
+    .beautifier-toolbar {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .beautifier-toolbar label {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .beautifier-toolbar select, .beautifier-toolbar input[type=number] {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 13px;
+    }
+
+    .beautifier-toolbar select:focus, .beautifier-toolbar input[type=number]:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .editors {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    @media (max-width: 640px) { .editors { grid-template-columns: 1fr; } }
+
+    .editor-pane {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .editor-pane-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .editor-pane-header span {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--muted);
+    }
+
+    .editor-pane-header .btn-icon {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 13px;
+      transition: all 0.15s;
+    }
+
+    .editor-pane-header .btn-icon:hover { background: var(--surface2); color: var(--text); }
+
+    textarea {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.6;
+      padding: 16px;
+      border-radius: var(--radius);
+      resize: vertical;
+      min-height: 360px;
+      width: 100%;
+      outline: none;
+      transition: border-color 0.15s;
+      tab-size: 2;
+    }
+
+    textarea:focus { border-color: var(--accent); }
+
+    textarea.output { background: var(--surface2); }
+
+    .error-banner {
+      background: #ff6b6b18;
+      border: 1px solid var(--error);
+      color: var(--error);
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      display: none;
+    }
+
+    .error-banner.visible { display: block; }
+  </style>
+</head>
+<body>
+
+<nav>
+  <span class="nav-brand">&#x26A1; DevTools</span>
+  <button class="tab-btn active" onclick="switchTab('ip')">&#x1F310; My IP</button>
+  <button class="tab-btn" onclick="switchTab('beautifier')">&#x2728; JS Beautifier</button>
+</nav>
+
+<!-- ════════════════ IP SCREEN ════════════════ -->
+<div id="screen-ip" class="screen active">
+  <div class="ip-hero">
+    <div class="ip-label">Your Public IP Address</div>
+    <div class="ip-value" id="ip-display">
+      <span class="skeleton" id="ip-skeleton"></span>
+    </div>
+    <div class="ip-actions">
+      <button class="btn btn-primary" onclick="refreshIP()">&#x21BB; Refresh</button>
+      <button class="btn btn-ghost" id="copy-btn" onclick="copyIP()">&#x2398; Copy</button>
+    </div>
+  </div>
+
+  <div class="details-grid">
+    <div class="detail-card">
+      <div class="d-label">IPv4</div>
+      <div class="d-value loading" id="d-ipv4"></div>
+    </div>
+    <div class="detail-card">
+      <div class="d-label">City</div>
+      <div class="d-value loading" id="d-city"></div>
+    </div>
+    <div class="detail-card">
+      <div class="d-label">Region</div>
+      <div class="d-value loading" id="d-region"></div>
+    </div>
+    <div class="detail-card">
+      <div class="d-label">Country</div>
+      <div class="d-value loading" id="d-country"></div>
+    </div>
+    <div class="detail-card">
+      <div class="d-label">Timezone</div>
+      <div class="d-value loading" id="d-tz"></div>
+    </div>
+    <div class="detail-card">
+      <div class="d-label">ISP / Org</div>
+      <div class="d-value loading" id="d-org"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ BEAUTIFIER SCREEN ════════════════ -->
+<div id="screen-beautifier" class="screen">
+  <div class="beautifier-toolbar">
+    <label>Indent size:
+      <input type="number" id="indent-size" value="2" min="1" max="8" style="width:60px" />
+    </label>
+    <label>Style:
+      <select id="indent-type">
+        <option value="space">Spaces</option>
+        <option value="tab">Tabs</option>
+      </select>
+    </label>
+    <label>
+      <input type="checkbox" id="preserve-newlines" checked />
+      Preserve newlines
+    </label>
+    <button class="btn btn-primary" onclick="runBeautify()">&#x2728; Beautify</button>
+    <button class="btn btn-ghost" onclick="clearAll()">&#x2715; Clear</button>
+  </div>
+
+  <div id="beautify-error" class="error-banner"></div>
+
+  <div class="editors">
+    <div class="editor-pane">
+      <div class="editor-pane-header">
+        <span>Input</span>
+        <button class="btn-icon" onclick="pasteInput()" title="Paste from clipboard">&#x1F4CB; Paste</button>
+      </div>
+      <textarea id="js-input" spellcheck="false" placeholder="// Paste your minified or messy JS here...
+var x=function(a,b){return a+b};console.log(x(1,2));"></textarea>
+    </div>
+    <div class="editor-pane">
+      <div class="editor-pane-header">
+        <span>Output</span>
+        <button class="btn-icon" onclick="copyOutput()" title="Copy output">&#x2398; Copy</button>
+      </div>
+      <textarea id="js-output" class="output" spellcheck="false" readonly placeholder="// Beautified code will appear here..."></textarea>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // ─── TABS ──────────────────────────────────────────────────
+  function switchTab(name) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('screen-' + name).classList.add('active');
+    event.currentTarget.classList.add('active');
+  }
+
+  // ─── TOAST ─────────────────────────────────────────────────
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2400);
+  }
+
+  // ─── IP ────────────────────────────────────────────────────
+  let currentIP = null;
+
+  function setDetail(id, value) {
+    const el = document.getElementById(id);
+    el.classList.remove('loading');
+    el.textContent = value || '—';
+  }
+
+  function setDetailsLoading() {
+    ['d-ipv4','d-city','d-region','d-country','d-tz','d-org'].forEach(id => {
+      const el = document.getElementById(id);
+      el.classList.add('loading');
+      el.textContent = '';
+    });
+  }
+
+  async function fetchIP() {
+    document.getElementById('ip-skeleton').style.display = 'inline-block';
+    document.getElementById('ip-display').innerHTML = '<span class="skeleton" id="ip-skeleton"></span>';
+    setDetailsLoading();
+
+    try {
+      const res = await fetch('https://ipapi.co/json/');
+      if (!res.ok) throw new Error('Network error');
+      const data = await res.json();
+
+      currentIP = data.ip;
+      document.getElementById('ip-display').textContent = data.ip;
+
+      setDetail('d-ipv4', data.ip);
+      setDetail('d-city', data.city);
+      setDetail('d-region', data.region);
+      setDetail('d-country', `${data.country_name} ${data.country_code ? '(' + data.country_code + ')' : ''}`);
+      setDetail('d-tz', data.timezone);
+      setDetail('d-org', data.org);
+    } catch (e) {
+      // Fallback: ipify
+      try {
+        const r2 = await fetch('https://api.ipify.org?format=json');
+        const d2 = await r2.json();
+        currentIP = d2.ip;
+        document.getElementById('ip-display').textContent = d2.ip;
+        setDetail('d-ipv4', d2.ip);
+        setDetail('d-city', 'Unavailable');
+        setDetail('d-region', 'Unavailable');
+        setDetail('d-country', 'Unavailable');
+        setDetail('d-tz', 'Unavailable');
+        setDetail('d-org', 'Unavailable');
+      } catch {
+        document.getElementById('ip-display').textContent = 'Error fetching IP';
+      }
+    }
+  }
+
+  function refreshIP() { fetchIP(); }
+
+  async function copyIP() {
+    if (!currentIP) return;
+    await navigator.clipboard.writeText(currentIP);
+    showToast('IP copied to clipboard!');
+  }
+
+  // ─── BEAUTIFIER ────────────────────────────────────────────
+  function runBeautify() {
+    const input = document.getElementById('js-input').value.trim();
+    const errBanner = document.getElementById('beautify-error');
+    errBanner.classList.remove('visible');
+
+    if (!input) {
+      errBanner.textContent = 'Please paste some JS code in the input area.';
+      errBanner.classList.add('visible');
+      return;
+    }
+
+    try {
+      const indentSize = parseInt(document.getElementById('indent-size').value) || 2;
+      const indentChar = document.getElementById('indent-type').value === 'tab' ? '\t' : ' '.repeat(indentSize);
+      const preserveNewlines = document.getElementById('preserve-newlines').checked;
+
+      const result = js_beautify(input, {
+        indent_size: indentSize,
+        indent_char: indentChar,
+        preserve_newlines: preserveNewlines,
+        max_preserve_newlines: 2,
+        jslint_happy: false,
+        brace_style: 'collapse',
+        keep_array_indentation: false,
+        keep_function_indentation: false,
+        space_before_conditional: true,
+        break_chained_methods: false,
+        eval_code: false,
+        unescape_strings: false,
+        wrap_line_length: 0,
+        wrap_attributes: 'auto',
+        end_with_newline: true,
+      });
+
+      document.getElementById('js-output').value = result;
+    } catch (err) {
+      errBanner.textContent = 'Error: ' + err.message;
+      errBanner.classList.add('visible');
+    }
+  }
+
+  async function pasteInput() {
+    try {
+      const text = await navigator.clipboard.readText();
+      document.getElementById('js-input').value = text;
+    } catch {
+      showToast('Clipboard access denied — paste manually (Ctrl+V)');
+    }
+  }
+
+  async function copyOutput() {
+    const val = document.getElementById('js-output').value;
+    if (!val) return;
+    await navigator.clipboard.writeText(val);
+    showToast('Output copied to clipboard!');
+  }
+
+  function clearAll() {
+    document.getElementById('js-input').value = '';
+    document.getElementById('js-output').value = '';
+    document.getElementById('beautify-error').classList.remove('visible');
+  }
+
+  // Ctrl+Enter to beautify
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      if (document.getElementById('screen-beautifier').classList.contains('active')) {
+        runBeautify();
+      }
+    }
+  });
+
+  // ─── INIT ──────────────────────────────────────────────────
+  fetchIP();
+</script>
+</body>
+</html>
